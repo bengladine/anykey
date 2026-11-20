@@ -23,6 +23,8 @@ Or build locally with Android Studio / `./gradlew assembleDebug`.
 
 For each app: play a song, open AnyKey, set +2 semitones, tap **Start transposing**, choose **entire screen** when asked.
 
+**Q0 — Does capture work at all?** Tap **Play test tone**, then **Start transposing**. The *Captured* meter should move and the status should say *Receiving audio ✓*; moving the semitone slider should change the pitch of the second (transposed) copy you hear. If this fails, the problem is the phone/our code, not the music apps.
+
 **Q1 — Does the app allow capture?** Watch the *Captured from other apps* meter. Moving = allowed. Flat while music plays = the app blocks capture.
 
 **Q2 — Can the original be hidden?** Stop, pick **Alarm** as the output, start again, then tap **Mute media**.

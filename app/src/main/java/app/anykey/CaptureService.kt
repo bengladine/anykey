@@ -118,18 +118,18 @@ class CaptureService : Service() {
                 .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
                 .addMatchingUsage(AudioAttributes.USAGE_GAME)
                 .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
-                .excludeUid(Process.myUid()) // never re-capture our own output
-                .build()
+                .build() // our own output is ALLOW_CAPTURE_BY_NONE, so no feedback loop
 
+            // 16-bit capture: the most widely supported format for playback capture.
             val inFormat = AudioFormat.Builder()
-                .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                 .setSampleRate(SAMPLE_RATE)
                 .setChannelMask(AudioFormat.CHANNEL_IN_STEREO)
                 .build()
-            val minIn = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_FLOAT)
+            val minIn = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT)
             record = AudioRecord.Builder()
                 .setAudioFormat(inFormat)
-                .setBufferSizeInBytes(maxOf(minIn, BLOCK_FRAMES * 2 * 4 * 4))
+                .setBufferSizeInBytes(maxOf(minIn, BLOCK_FRAMES * 2 * 2 * 4))
                 .setAudioPlaybackCaptureConfig(captureConfig)
                 .build()
 
@@ -153,21 +153,47 @@ class CaptureService : Service() {
                 .build()
 
             record.startRecording()
+            if (record.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                status = "Error: capture did not start (state ${record.recordingState})"
+                return
+            }
             track.play()
 
             val left = PitchShifter()
             val right = PitchShifter()
             val latencyMs = left.latency * 1000 / SAMPLE_RATE
-            status = "Running — output on ${output.label} stream, DSP latency ≈ $latencyMs ms"
+            val header = "Output: ${output.label} · DSP latency ≈ $latencyMs ms"
+            status = "$header\nWaiting for audio…"
+            val pcm = ShortArray(BLOCK_FRAMES * 2)
             val buf = FloatArray(BLOCK_FRAMES * 2)
+            var reads = 0L
+            var silentReads = 0L
+            var lastReport = 0L
 
             while (!stopRequested) {
-                val n = record.read(buf, 0, buf.size, AudioRecord.READ_BLOCKING)
+                val n = record.read(pcm, 0, pcm.size, AudioRecord.READ_BLOCKING)
                 if (n < 0) {
                     status = "Error: capture read failed ($n)"
                     break
                 }
                 if (n == 0) continue
+                var peak = 0
+                for (i in 0 until n) {
+                    val v = pcm[i].toInt()
+                    if (v > peak) peak = v else if (-v > peak) peak = -v
+                    buf[i] = v / 32768f
+                }
+                reads++
+                if (peak == 0) silentReads++ else silentReads = 0
+                if (reads - lastReport >= 20) { // ~5 times per second
+                    lastReport = reads
+                    val players = getSystemService(AudioManager::class.java).activePlaybackConfigurations.size
+                    status = "$header\nActive players on phone: $players\n" + if (silentReads >= 20) {
+                        "Receiving pure silence — the playing app probably blocks capture"
+                    } else {
+                        "Receiving audio ✓"
+                    }
+                }
                 val frames = n / 2
                 inputLevel = rms(buf, n)
                 val ratio = 2.0.pow((semitones + cents / 100.0) / 12.0)

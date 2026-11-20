@@ -35,6 +35,8 @@ class MainActivity : Activity() {
 
     private val audioManager by lazy { getSystemService(AudioManager::class.java) }
     private var savedMediaVolume = -1
+    private val testTone = TestTone()
+    private lateinit var toneButton: Button
     private val ui = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
@@ -79,6 +81,9 @@ class MainActivity : Activity() {
             }
         }
 
+        toneButton = findViewById(R.id.testTone)
+        toneButton.setOnClickListener { if (testTone.isPlaying) testTone.stop() else testTone.start() }
+
         findViewById<Button>(R.id.muteMedia).setOnClickListener {
             if (savedMediaVolume < 0) savedMediaVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
             audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, AudioManager.FLAG_SHOW_UI)
@@ -100,6 +105,11 @@ class MainActivity : Activity() {
         ui.post(tick)
     }
 
+    override fun onDestroy() {
+        testTone.stop()
+        super.onDestroy()
+    }
+
     override fun onPause() {
         ui.removeCallbacks(tick)
         super.onPause()
@@ -114,6 +124,7 @@ class MainActivity : Activity() {
         }
         centsLabel.text = "Fine tune: %+d cents".format(CaptureService.cents)
         startButton.text = if (CaptureService.running) "Stop" else "Start transposing"
+        toneButton.text = if (testTone.isPlaying) "Stop test tone" else "Play test tone"
         outputSpinner.isEnabled = !CaptureService.running
         inputMeter.progress = meter(CaptureService.inputLevel)
         outputMeter.progress = meter(CaptureService.outputLevel)
