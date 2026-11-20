@@ -153,7 +153,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Pick a non-Media output (e.g. Alarm) before starting, then mute media volume. If the 'Captured' meter keeps moving and you hear only the transposed version, the original can be silenced." />
+            android:text="Android captures audio after the media volume, so muting media also mutes what AnyKey hears. Instead: pick Alarm output before starting, then put media at its lowest step. AnyKey boosts the captured audio back up, so the transposed copy is loud and the original barely audible." />
 
         <TextView
             android:id="@+id/volumes"
@@ -171,7 +171,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Mute media" />
+                android:text="Media to lowest" />
 
             <Button
                 android:id="@+id/restoreMedia"

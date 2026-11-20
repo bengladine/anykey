@@ -24,7 +24,10 @@ import android.os.Looper
 import android.os.Process
 import android.util.Log
 import app.anykey.dsp.PitchShifter
+import android.media.AudioDeviceInfo
+import kotlin.math.abs
 import kotlin.math.pow
+import kotlin.math.tanh
 import kotlin.math.sqrt
 
 /**
@@ -169,6 +172,10 @@ class CaptureService : Service() {
             var reads = 0L
             var silentReads = 0L
             var lastReport = 0L
+            val am = getSystemService(AudioManager::class.java)
+            var gain = 1f
+            var targetGain = 1f
+            var compensationText = ""
 
             while (!stopRequested) {
                 val n = record.read(pcm, 0, pcm.size, AudioRecord.READ_BLOCKING)
@@ -187,8 +194,15 @@ class CaptureService : Service() {
                 if (peak == 0) silentReads++ else silentReads = 0
                 if (reads - lastReport >= 20) { // ~5 times per second
                     lastReport = reads
-                    val players = getSystemService(AudioManager::class.java).activePlaybackConfigurations.size
-                    status = "$header\nActive players on phone: $players\n" + if (silentReads >= 20) {
+                    val players = am.activePlaybackConfigurations.size
+                    if (output != OutputStream.MEDIA) {
+                        // Capture is taken after the media volume. Undo that attenuation so the
+                        // original can sit at a very low volume while the transposed copy is loud.
+                        val boostDb = mediaAttenuationDb(am, track.routedDevice?.type)
+                        targetGain = 10f.pow(boostDb / 20f)
+                        compensationText = "\nMedia volume compensation: +%.0f dB".format(boostDb)
+                    }
+                    status = "$header$compensationText\nActive players on phone: $players\n" + if (silentReads >= 20) {
                         "Receiving pure silence — the playing app probably blocks capture"
                     } else {
                         "Receiving audio ✓"
@@ -196,9 +210,17 @@ class CaptureService : Service() {
                 }
                 val frames = n / 2
                 inputLevel = rms(buf, n)
+                if (gain != targetGain || gain != 1f) {
+                    for (f in 0 until frames) {
+                        gain += (targetGain - gain) * 0.002f
+                        buf[2 * f] *= gain
+                        buf[2 * f + 1] *= gain
+                    }
+                }
                 val ratio = 2.0.pow((semitones + cents / 100.0) / 12.0)
                 left.process(buf, 0, 2, frames, ratio)
                 right.process(buf, 1, 2, frames, ratio)
+                for (i in 0 until n) buf[i] = softClip(buf[i])
                 outputLevel = rms(buf, n)
                 track.write(buf, 0, n, AudioTrack.WRITE_BLOCKING)
             }
@@ -214,6 +236,26 @@ class CaptureService : Service() {
             outputLevel = 0f
             if (!stopRequested) Handler(Looper.getMainLooper()).post { stopSelf() }
         }
+    }
+
+    /** dB the system applies at the current media volume, as a positive boost (capped at 45 dB). */
+    private fun mediaAttenuationDb(am: AudioManager, deviceType: Int?): Float {
+        val index = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        if (index <= 0) return 0f // fully muted: nothing left to recover
+        val db = runCatching {
+            am.getStreamVolumeDb(AudioManager.STREAM_MUSIC, index, deviceType ?: AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)
+        }.recoverCatching {
+            am.getStreamVolumeDb(AudioManager.STREAM_MUSIC, index, AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)
+        }.getOrDefault(0f)
+        return (-db).coerceIn(0f, 45f)
+    }
+
+    /** Transparent below 0.8, smoothly limits above so boosted audio never hard-clips. */
+    private fun softClip(x: Float): Float {
+        val a = abs(x)
+        if (a <= 0.8f) return x
+        val y = 0.8f + 0.2f * tanh((a - 0.8f) / 0.2f)
+        return if (x < 0) -y else y
     }
 
     private fun rms(buf: FloatArray, n: Int): Float {

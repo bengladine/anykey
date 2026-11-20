@@ -86,7 +86,8 @@ class MainActivity : Activity() {
 
         findViewById<Button>(R.id.muteMedia).setOnClickListener {
             if (savedMediaVolume < 0) savedMediaVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, 0, AudioManager.FLAG_SHOW_UI)
+            val lowest = maxOf(1, audioManager.getStreamMinVolume(AudioManager.STREAM_MUSIC))
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, lowest, AudioManager.FLAG_SHOW_UI)
         }
         findViewById<Button>(R.id.restoreMedia).setOnClickListener {
             val v = if (savedMediaVolume >= 0) savedMediaVolume
