@@ -61,7 +61,7 @@ object EqSessions {
             ).setInputGainAllChannelsTo(-60f).build()
             val dp = DynamicsProcessing(PRIORITY, session, config)
             dp.setInputGainAllChannelsTo(-60f)
-            dp.enabled = true
+            dp.setEnabled(true)
             effects[session] = dp
             results[session] = "hidden via DynamicsProcessing (%.0f dB, control=%b)".format(
                 dp.getInputGainByChannelIndex(0), dp.hasControl()
@@ -76,7 +76,7 @@ object EqSessions {
             val eq = Equalizer(PRIORITY, session)
             val min = eq.bandLevelRange[0]
             for (b in 0 until eq.numberOfBands) eq.setBandLevel(b.toShort(), min)
-            eq.enabled = true
+            eq.setEnabled(true)
             effects[session] = eq
             results[session] = "hidden via Equalizer (%d dB, control=%b)".format(min / 100, eq.hasControl())
         } catch (e: Exception) {
@@ -87,7 +87,7 @@ object EqSessions {
 
     private fun detach(session: Int) {
         effects.remove(session)?.let {
-            runCatching { it.enabled = false }
+            runCatching { it.setEnabled(false) }
             it.release()
         }
     }
