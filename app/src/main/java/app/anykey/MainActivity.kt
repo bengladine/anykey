@@ -3,6 +3,8 @@ package app.anykey
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.IntentFilter
+import android.media.audiofx.AudioEffect
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.projection.MediaProjectionConfig
@@ -37,6 +39,9 @@ class MainActivity : Activity() {
     private var savedMediaVolume = -1
     private val testTone = TestTone()
     private lateinit var toneButton: Button
+    private lateinit var hideButton: Button
+    private lateinit var eqText: TextView
+    private val eqReceiver = EqSessionReceiver()
     private val ui = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
@@ -81,6 +86,18 @@ class MainActivity : Activity() {
             }
         }
 
+        // Also listen while the app is open (some phones don't deliver these to manifest receivers).
+        val filter = IntentFilter().apply {
+            addAction(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION)
+            addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION)
+        }
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(eqReceiver, filter, RECEIVER_EXPORTED)
+        else registerReceiver(eqReceiver, filter)
+
+        eqText = findViewById(R.id.eqSessions)
+        hideButton = findViewById(R.id.hideOriginal)
+        hideButton.setOnClickListener { EqSessions.setHiding(!EqSessions.hiding) }
+
         toneButton = findViewById(R.id.testTone)
         toneButton.setOnClickListener { if (testTone.isPlaying) testTone.stop() else testTone.start() }
 
@@ -108,6 +125,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         testTone.stop()
+        unregisterReceiver(eqReceiver)
         super.onDestroy()
     }
 
@@ -126,6 +144,8 @@ class MainActivity : Activity() {
         centsLabel.text = "Fine tune: %+d cents".format(CaptureService.cents)
         startButton.text = if (CaptureService.running) "Stop" else "Start transposing"
         toneButton.text = if (testTone.isPlaying) "Stop test tone" else "Play test tone"
+        hideButton.text = if (EqSessions.hiding) "Stop hiding original" else "Hide original (EQ trick)"
+        eqText.text = EqSessions.describe()
         outputSpinner.isEnabled = !CaptureService.running
         inputMeter.progress = meter(CaptureService.inputLevel)
         outputMeter.progress = meter(CaptureService.outputLevel)

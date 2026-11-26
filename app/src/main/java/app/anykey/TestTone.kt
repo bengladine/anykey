@@ -47,6 +47,8 @@ class TestTone {
             )
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
+        // Announce the tone's session like a music app would, so the EQ trick can be tested on it.
+        EqSessions.opened(track.audioSessionId, "AnyKey test tone")
         track.play()
         val notes = intArrayOf(60, 64, 67, 72) // C4 E4 G4 C5
         val noteLen = sr * 4 / 10
@@ -66,6 +68,7 @@ class TestTone {
                 n++
             }
         } finally {
+            EqSessions.closed(track.audioSessionId)
             track.stop()
             track.release()
         }

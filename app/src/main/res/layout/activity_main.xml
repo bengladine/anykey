@@ -186,5 +186,30 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Show output-stream volume slider" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Experiment: system-wide EQ trick"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Music apps announce their audio to equalizer apps. AnyKey attaches a built-in effect that turns the original down 60 dB. Keep media volume normal and use Alarm output." />
+
+        <TextView
+            android:id="@+id/eqSessions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/hideOriginal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Hide original (EQ trick)" />
     </LinearLayout>
 </ScrollView>
